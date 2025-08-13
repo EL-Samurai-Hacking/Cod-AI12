@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>لوحة تحكم متطورة - EL Samurai</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@600&display=swap" rel="stylesheet">
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-storage-compat.js"></script>
+  <style>
+    body {
+      font-family: 'Cairo', sans-serif;
+      background-color: #111;
+      color: white;
+      padding: 10px;
+      margin: 0;
+    }
+    h1 {
+      color: #0ff;
+      font-size: 1.5rem;
+      margin: 10px 0;
+    }
+    label {
+      display: block;
+      margin: 10px 0 5px;
+      font-size: 0.9rem;
+    }
+    input, textarea, select {
+      width: 100%;
+      padding: 8px;
+      border: none;
+      border-radius: 6px;
+      margin-bottom: 8px;
+      box-sizing: border-box;
+      font-size: 0.9rem;
+    }
+    button {
+      background-color: #0ff;
+      color: #000;
+      font-weight: bold;
+      padding: 10px 15px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      width: 100%;
+      margin-top: 5px;
+    }
+    .preview {
+      margin-top: 20px;
+    }
+    .card {
+      background: #222;
+      border-radius: 8px;
+      padding: 8px;
+      margin-bottom: 12px;
+      position: relative;
+    }
+    .card img {
+      width: 100%;
+      border-radius: 6px;
+      max-height: 150px;
+      object-fit: cover;
+    }
+    .delete, .edit {
+      position: absolute;
+      top: 8px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      padding: 4px 8px;
+      color: white;
+      font-size: 0.8rem;
+    }
+    .delete {
+      left: 8px;
+      background: red;
+    }
+    .edit {
+      left: 70px;
+      background: orange;
+    }
+    .attachment {
+      margin-top: 8px;
+      display: block;
+      color: #0ff;
+      font-size: 0.9rem;
+    }
+    .card h3 {
+      margin: 8px 0;
+      font-size: 1rem;
+    }
+    .card p {
+      margin: 5px 0;
+      font-size: 0.9rem;
+      line-height: 1.4;
+    }
+    .loading {
+      display: none;
+      text-align: center;
+      margin: 20px 0;
+      color: #0ff;
+    }
+    @media (min-width: 768px) {
+      body {
+        padding: 20px;
+        max-width: 800px;
+        margin: 0 auto;
+      }
+      h1 {
+        font-size: 2rem;
+      }
+      label {
+        font-size: 1rem;
+      }
+      input, textarea, select {
+        padding: 10px;
+        font-size: 1rem;
+      }
+      button {
+        width: auto;
+        padding: 10px 20px;
+      }
+      .card {
+        padding: 15px;
+      }
+      .card img {
+        max-height: 200px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>🛠️ لوحة التحكم: إضافة / تعديل خدمة</h1>
+  <form id="addServiceForm">
+    <input type="hidden" id="editIndex">
+    <input type="hidden" id="editId">
+    <label>📌 العنوان</label>
+    <input type="text" id="title" required>
+
+    <label>🖼️ رابط الصورة أو ارفعها</label>
+    <input type="url" id="imageUrl" placeholder="https://example.com/image.jpg">
+    <input type="file" id="imageFile" accept="image/*">
+
+    <label>📝 الوصف</label>
+    <textarea id="desc" rows="3" required></textarea>
+
+    <label>📂 الفئة</label>
+    <select id="category">
+      <option value="أدوات">أدوات</option>
+      <option value="كورسات">كورسات</option>
+      <option value="أخبار">أخبار</option>
+      <option value="أخرى">أخرى</option>
+    </select>
+
+    <label>🔗 رابط خارجي</label>
+    <input type="url" id="link" placeholder="https://t.me/..." required>
+
+    <label>📎 ملف مرفق (رابط تحميل أو ملف)</label>
+    <input type="url" id="fileUrl" placeholder="https://example.com/file.zip">
+    <input type="file" id="fileUpload">
+
+    <button type="submit">💾 حفظ الخدمة</button>
+  </form>
+
+  <div class="loading" id="loading">جاري التحميل...</div>
+  <div class="preview" id="preview"></div>
+
+  <script>
+    // تكوين Firebase
+    const firebaseConfig = {
+      apiKey: "AIzaSyCTQ7sUS5VrIY7wIIq-BVjYYWLygCtQOHY",
+      authDomain: "el-samurai-cod-ai.firebaseapp.com",
+      databaseURL: "https://el-samurai-cod-ai-default-rtdb.firebaseio.com",
+      projectId: "el-samurai-cod-ai",
+      storageBucket: "el-samurai-cod-ai.appspot.com",
+      messagingSenderId: "947619246455",
+      appId: "1:947619246455:web:df4fe0fae7f5d5aee73172",
+      measurementId: "G-EYR30QTGLS"
+    };
+
+    // تهيئة Firebase
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    const storage = firebase.storage();
+    
+    // العناصر الرئيسية
+    const form = document.getElementById('addServiceForm');
+    const preview = document.getElementById('preview');
+    const editIndexInput = document.getElementById('editIndex');
+    const editIdInput = document.getElementById('editId');
+    const loading = document.getElementById('loading');
+    let services = [];
+
+    // دالة لرفع الملفات إلى Storage
+    async function uploadFile(file, path) {
+      const storageRef = storage.ref(path);
+      const snapshot = await storageRef.put(file);
+      const downloadURL = await snapshot.ref.getDownloadURL();
+      return downloadURL;
+    }
+
+    // عرض الخدمات
+    function renderServices() {
+      preview.innerHTML = '';
+      services.forEach((s, index) => {
+        preview.innerHTML += `
+          <div class="card">
+            <button class="delete" onclick="deleteService('${s.id}')">حذف</button>
+            <button class="edit" onclick="editService(${index})">تعديل</button>
+            <img src="${s.image}" alt="${s.title}" loading="lazy">
+            <h3>${s.title}</h3>
+            <p>${s.desc}</p>
+            <p><strong>الفئة:</strong> ${s.category}</p>
+            <a href="${s.link}" target="_blank" style="color:#0ff;">رابط الخدمة</a>
+            ${s.file ? `<a class="attachment" href="${s.file}" target="_blank">📎 تحميل المرفق</a>` : ''}
+          </div>
+        `;
+      });
+    }
+
+    // حذف الخدمة
+    async function deleteService(id) {
+      if (confirm("هل أنت متأكد من حذف هذه الخدمة؟")) {
+        try {
+          await db.collection('services').doc(id).delete();
+          services = services.filter(s => s.id !== id);
+          renderServices();
+        } catch (error) {
+          console.error("Error deleting service: ", error);
+          alert("حدث خطأ أثناء حذف الخدمة");
+        }
+      }
+    }
+
+    // تعديل الخدمة
+    function editService(index) {
+      const s = services[index];
+      editIndexInput.value = index;
+      editIdInput.value = s.id;
+      document.getElementById('title').value = s.title;
+      document.getElementById('imageUrl').value = s.image.startsWith('https://') ? s.image : '';
+      document.getElementById('desc').value = s.desc;
+      document.getElementById('category').value = s.category;
+      document.getElementById('link').value = s.link;
+      document.getElementById('fileUrl').value = s.file && s.file.startsWith('https://') ? s.file : '';
+      window.scrollTo(0, 0);
+    }
+
+    // حفظ الخدمة
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      loading.style.display = 'block';
+      
+      try {
+        let image = document.getElementById('imageUrl').value;
+        const imageFile = document.getElementById('imageFile').files[0];
+        if (imageFile) {
+          image = await uploadFile(imageFile, `images/${Date.now()}_${imageFile.name}`);
+        }
+
+        let file = document.getElementById('fileUrl').value;
+        const fileBlob = document.getElementById('fileUpload').files[0];
+        if (fileBlob) {
+          file = await uploadFile(fileBlob, `files/${Date.now()}_${fileBlob.name}`);
+        }
+
+        const serviceData = {
+          title: document.getElementById('title').value,
+          image: image,
+          desc: document.getElementById('desc').value,
+          category: document.getElementById('category').value,
+          link: document.getElementById('link').value,
+          file: file || '',
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        };
+
+        const editIndex = editIndexInput.value;
+        const editId = editIdInput.value;
+        
+        if (editIndex !== '' && editId !== '') {
+          // تحديث الخدمة الموجودة
+          await db.collection('services').doc(editId).update(serviceData);
+          services[editIndex] = { ...serviceData, id: editId };
+          editIndexInput.value = '';
+          editIdInput.value = '';
+        } else {
+          // إضافة خدمة جديدة
+          const docRef = await db.collection('services').add(serviceData);
+          services.unshift({ ...serviceData, id: docRef.id });
+        }
+
+        form.reset();
+        renderServices();
+      } catch (error) {
+        console.error("Error saving service: ", error);
+        alert("حدث خطأ أثناء حفظ الخدمة");
+      } finally {
+        loading.style.display = 'none';
+      }
+    });
+
+    // جلب الخدمات من Firebase
+    function fetchServices() {
+      loading.style.display = 'block';
+      db.collection('services')
+        .orderBy('createdAt', 'desc')
+        .onSnapshot((snapshot) => {
+          services = [];
+          snapshot.forEach((doc) => {
+            services.push({ id: doc.id, ...doc.data() });
+          });
+          renderServices();
+          loading.style.display = 'none';
+        }, (error) => {
+          console.error("Error fetching services: ", error);
+          loading.style.display = 'none';
+        });
+    }
+
+    // بدء التطبيق
+    fetchServices();
+  </script>
+</body>
+</html>
